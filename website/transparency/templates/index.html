@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Article Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Include Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- Header Section for Title and Logo -->
+    <div class="header">
+        <!-- Hamburger Menu Icon -->
+        <div class="menu-icon" id="menuButton">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+
+        <h1 class="header-title">Transparency 2.0</h1>
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="header-logo">
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <a href="#" class="close-btn" id="closeSidebar">&times;</a>
+        <a href="#">Link 1</a>
+        <a href="#">Link 2</a>
+        <a href="#">Link 3</a>
+        <a href="#">External Link</a>
+    </div>
+
+    <div class="bubble-container">
+        <!-- Placeholder for dynamic typing text -->
+        <div class="typing-text">
+            <span id="typedText"></span><span id="cursor">|</span>
+        </div>
+
+        <form id="urlForm" class="input-bubble">
+            <input type="text" id="urlInput" class="url-input" placeholder="Paste URL or copy text here">
+            <input type="submit" class="submit-btn" value="Analyze">
+        </form>
+        
+        <!-- Loading spinner underneath the input box -->
+        <div id="loadingSpinner" class="loading-spinner" style="display:none;">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="output-container">
+            <!-- Centered Title Above PCA Graph -->
+            <h1 class="graph-title">K-Cluster Analysis</h1>
+            <div id="pcaPlot" class="full-width"></div>
+
+            <!-- Add the 3D PCA plot below the 2D plot -->
+            <h1 class="graph-title">3D K-Cluster Analysis</h1>
+            <div id="pcaPlot3D" class="full-width"></div>
+
+            <h2>Word Cloud</h2>
+            <img id="wordcloudImage" src="" alt="Word Cloud">
+        </div>
+    </div>
+
+    <script>
+        // Phrases to type out
+        const phrases = [
+            "Analyzing global news trends...",
+            "Understanding article clusters...",
+            "Finding hidden patterns in data...",
+            "Exploring news sentiment..."
+        ];
+
+        // Typing effect configuration
+        const typingSpeed = 100; // Speed at which letters are typed
+        const deletingSpeed = 50; // Speed at which letters are deleted
+        const delayBetweenPhrases = 2000; // Delay before starting the next phrase
+
+        let phraseIndex = 0;
+        let letterIndex = 0;
+        let currentPhrase = '';
+        let isDeleting = false;
+
+        function typePhrase() {
+            const displayText = document.getElementById('typedText');
+            const cursor = document.getElementById('cursor');
+            cursor.style.display = 'inline'; // Show cursor
+
+            // Determine whether to type or delete
+            if (!isDeleting && letterIndex <= phrases[phraseIndex].length) {
+                currentPhrase = phrases[phraseIndex].substring(0, letterIndex);
+                letterIndex++;
+                displayText.textContent = currentPhrase;
+                setTimeout(typePhrase, typingSpeed);
+            } else if (isDeleting && letterIndex >= 0) {
+                currentPhrase = phrases[phraseIndex].substring(0, letterIndex);
+                letterIndex--;
+                displayText.textContent = currentPhrase;
+                setTimeout(typePhrase, deletingSpeed);
+            } else if (!isDeleting && letterIndex > phrases[phraseIndex].length) {
+                isDeleting = true;
+                setTimeout(typePhrase, delayBetweenPhrases);
+            } else if (isDeleting && letterIndex < 0) {
+                isDeleting = false;
+                phraseIndex = (phraseIndex + 1) % phrases.length; // Move to next phrase
+                setTimeout(typePhrase, typingSpeed);
+            }
+        }
+
+        // Start the typing effect
+        document.addEventListener('DOMContentLoaded', (event) => {
+            console.log("Page loaded, starting typing effect.");
+            typePhrase();
+        });
+
+        // JavaScript to toggle the sidebar
+        document.getElementById("menuButton").onclick = function() {
+            console.log("Opening sidebar.");
+            document.getElementById("sidebar").style.width = "250px";
+            document.querySelector("body").style.marginLeft = "250px";
+        }
+
+        document.getElementById("closeSidebar").onclick = function() {
+            console.log("Closing sidebar.");
+            document.getElementById("sidebar").style.width = "0";
+            document.querySelector("body").style.marginLeft = "0";
+        }
+
+        // Custom smooth scroll function
+        function smoothScrollTo(target, duration) {
+            console.log("Starting smooth scroll.");
+            const targetPosition = target.getBoundingClientRect().top;
+            const startPosition = window.pageYOffset;
+            let startTime = null;
+
+            function animation(currentTime) {
+                if (startTime === null) startTime = currentTime;
+                const timeElapsed = currentTime - startTime;
+                const run = ease(timeElapsed, startPosition, targetPosition, duration);
+                window.scrollTo(0, run);
+                if (timeElapsed < duration) requestAnimationFrame(animation);
+            }
+
+            function ease(t, b, c, d) {
+                t /= d / 2;
+                if (t < 1) return c / 2 * t * t + b;
+                t--;
+                return -c / 2 * (t * (t - 2) - 1) + b;
+            }
+
+            requestAnimationFrame(animation);
+        }
+
+        // Handling URL submission for analysis
+        document.getElementById('urlForm').onsubmit = async function(event) {
+            event.preventDefault();
+            const url = document.getElementById('urlInput').value;
+
+            console.log("Form submitted, starting analysis.");
+            console.log("URL submitted for analysis:", url);
+
+            // Show the loading spinner and hide the PCA plots
+            document.getElementById('loadingSpinner').style.display = 'flex';
+            document.getElementById('pcaPlot').style.display = 'none';
+            document.getElementById('pcaPlot3D').style.display = 'none';
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log("Received response:", data);
+
+                    if (data.success) {
+                        console.log("Data processing successful.");
+
+                        // Log data to check structure
+                        console.log("2D graphData:", data.graphData2D);
+                        console.log("3D graphData:", data.graphData3D);
+
+                        if (data.graphData2D && data.graphData2D.data && data.graphData2D.layout) {
+                            Plotly.react('pcaPlot', data.graphData2D.data, data.graphData2D.layout);
+                            console.log("2D plot updated.");
+                        } else {
+                            console.error("graphData2D is undefined or malformed:", data.graphData2D);
+                        }
+
+                        if (data.graphData3D && data.graphData3D.data && data.graphData3D.layout) {
+                            Plotly.react('pcaPlot3D', data.graphData3D.data, data.graphData3D.layout);
+                            console.log("3D plot updated.");
+                        } else {
+                            console.error("graphData3D is undefined or malformed:", data.graphData3D);
+                        }
+
+                        // Hide the spinner and show the PCA plots
+                        document.getElementById('loadingSpinner').style.display = 'none';
+                        document.getElementById('pcaPlot').style.display = 'block';
+                        document.getElementById('pcaPlot3D').style.display = 'block';
+                        console.log("Spinner hidden and plots displayed.");
+
+                        // Smooth scroll to the PCA plots
+                        smoothScrollTo(document.getElementById('pcaPlot'), 2000);
+
+                        // Update the word cloud image
+                        document.getElementById('wordcloudImage').src = "/static/plots/wordcloud.png?" + new Date().getTime();
+                        console.log("Word cloud updated.");
+                    } else {
+                        console.error("Failed to generate plots:", data.error);
+                        document.getElementById('loadingSpinner').style.display = 'none'; // Hide the spinner even if there is an error
+                    }
+                } else {
+                    console.error("Failed to send request", response.statusText);
+                    document.getElementById('loadingSpinner').style.display = 'none'; // Hide the spinner on request failure
+                }
+            } catch (error) {
+                console.error("Request failed or timed out:", error);
+                document.getElementById('loadingSpinner').style.display = 'none'; // Hide the spinner on request failure
+            }
+        };
+    </script>
+</body>
+</html>
+
